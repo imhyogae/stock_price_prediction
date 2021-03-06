@@ -11,6 +11,8 @@ class LongShortTermMemory:
     NUMBER_OF_FEATURE = 1
 
     def __init__(self, stock_ticker, start_date, end_date, training_duration):
+        self.stock_ticker = stock_ticker
+        self.end_date = end_date
         self.df = web.DataReader(stock_ticker, data_source='yahoo', start=start_date, end=end_date)
         self.data_set = self.df.filter(['Close']).values
         self.training_data_len = math.ceil(len(self.data_set) * 0.8)
@@ -18,7 +20,7 @@ class LongShortTermMemory:
         self.training_duration = training_duration
         self.scaled_data = self.scaler.fit_transform(self.data_set)
 
-    def visualize(self, title, x_label, y_label):
+    def plot_data(self, title, x_label, y_label):
         plt.figure(figsize=(16, 8))
         plt.title(title)
         plt.plot(self.df['Close'])
@@ -30,7 +32,7 @@ class LongShortTermMemory:
 
     def run_prediction(self, show_data_graph):
         if show_data_graph:
-            self.visualize('Close Price History', 'Date', 'Close Price USD ($)')
+            self.plot_data('Close Price History', 'Date', 'Close Price USD ($)')
         y_eval = self.data_set[self.training_data_len:, :]
         trained_model = self.training(self.scaled_data[0:self.training_data_len, :])
         predictions = self.evaluating(
@@ -66,7 +68,7 @@ class LongShortTermMemory:
     def evaluating(self, eval_data, model, y_test):
         # Create the data set
         x_test = []
-        for i in range(self.training_duration, len(eval_data)):
+        for i in range(self.training_duration, len(eval_data) + 1):
             x_test.append(eval_data[i - self.training_duration:i, 0])
 
         x_test = np.array(x_test)
@@ -76,10 +78,13 @@ class LongShortTermMemory:
         predictions = model.predict(x_test)
         # Contains the same value as y_test
         predictions = self.scaler.inverse_transform(predictions)
-
+        next_day_stock_price = predictions[len(predictions) - 1:]
+        predictions = predictions[:len(predictions) - 1]
+        print("Today stock at: ", y_test[len(y_test) - 1:], "Predicted: ", predictions[len(predictions) - 1:])
+        print("The day after ", self.end_date, " price of ", self.stock_ticker, "is: ", next_day_stock_price)
         # Get the RMSE, standard deviation of residual
         rmse = np.sqrt(np.mean(predictions - y_test) ** 2)
-        print(rmse)
+        print("Model root mean square is: ", rmse)
         return predictions
 
     def plot_model(self, predicted_data):
@@ -88,7 +93,6 @@ class LongShortTermMemory:
         train = data[:self.training_data_len]
         valid = data[self.training_data_len:]
         valid['Predictions'] = predicted_data
-        print(valid.shape)
         plt.figure(figsize=(16, 8))
         plt.title('Model Prediction')
         plt.xlabel('Date', fontsize=18)
